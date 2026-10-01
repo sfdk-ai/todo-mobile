@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 data class TodoListState(
     val todos: List<Todo> = emptyList(),
@@ -92,6 +93,24 @@ class TodoListViewModel(
                 throw e
             } catch (e: Exception) {
                 _state.update { it.copy(error = e.toUserMessage()) }
+            }
+        }
+    }
+
+    /** Shows the server's copy of a todo opened from the list, or drops it when it was deleted. */
+    fun reloadTodo(id: String) {
+        viewModelScope.launch {
+            try {
+                val todo = api().getTodo(id)
+                _state.update { state ->
+                    state.copy(todos = state.todos.map { if (it.id == todo.id) todo else it })
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: HttpException) {
+                if (e.code() == 404) _state.update { state -> state.copy(todos = state.todos.filter { it.id != id }) }
+            } catch (e: Exception) {
+                // The row keeps what it showed; a pull to refresh tries again.
             }
         }
     }

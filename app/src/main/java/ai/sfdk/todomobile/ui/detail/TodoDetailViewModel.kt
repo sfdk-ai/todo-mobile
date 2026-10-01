@@ -21,11 +21,17 @@ data class TodoDetailState(
     val draftTags: String = "",
     val isSaving: Boolean = false,
     val isDeleted: Boolean = false,
+    val isFinished: Boolean = false,
     val error: String? = null,
 )
 
+/**
+ * One todo, to view and edit. With [editOnOpen] the screen opens straight in the edit form, as a
+ * long-press on the list does, and is finished once that edit is saved or cancelled.
+ */
 class TodoDetailViewModel(
     private val id: String,
+    private val editOnOpen: Boolean = false,
     private val api: suspend () -> TodoApi,
 ) : ViewModel() {
 
@@ -42,6 +48,7 @@ class TodoDetailViewModel(
             try {
                 val todo = api().getTodo(id)
                 _state.update { it.copy(todo = todo, isLoading = false) }
+                if (editOnOpen) startEditing()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -63,7 +70,7 @@ class TodoDetailViewModel(
     }
 
     fun cancelEditing() {
-        _state.update { it.copy(isEditing = false, error = null) }
+        _state.update { it.copy(isEditing = false, isFinished = editOnOpen, error = null) }
     }
 
     fun onTitleChange(title: String) {
@@ -85,7 +92,7 @@ class TodoDetailViewModel(
         viewModelScope.launch {
             try {
                 val updated = api().updateTodo(id, TodoChanges(title = title, tags = parseTags(draft.draftTags)))
-                _state.update { it.copy(todo = updated, isEditing = false, isSaving = false) }
+                _state.update { it.copy(todo = updated, isEditing = false, isSaving = false, isFinished = editOnOpen) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

@@ -1,7 +1,8 @@
 package ai.sfdk.todomobile.ui.list
 
 import ai.sfdk.todomobile.data.Todo
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,6 +52,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun TodoListScreen(
     viewModel: TodoListViewModel,
     onOpenTodo: (String) -> Unit,
+    onEditTodo: (String) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -104,6 +106,7 @@ fun TodoListScreen(
                 TodoList(
                     state = state,
                     onOpenTodo = onOpenTodo,
+                    onEditTodo = onEditTodo,
                     onMarkDone = viewModel::markDone,
                     onLoadMore = viewModel::loadMore,
                 )
@@ -126,6 +129,7 @@ fun TodoListScreen(
 private fun TodoList(
     state: TodoListState,
     onOpenTodo: (String) -> Unit,
+    onEditTodo: (String) -> Unit,
     onMarkDone: (String) -> Unit,
     onLoadMore: () -> Unit,
 ) {
@@ -146,6 +150,7 @@ private fun TodoList(
                 TodoRow(
                     todo = todo,
                     onClick = { onOpenTodo(todo.id) },
+                    onLongClick = { onEditTodo(todo.id) },
                     onMarkDone = { onMarkDone(todo.id) },
                 )
                 HorizontalDivider()
@@ -175,17 +180,19 @@ private fun TodoList(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TodoRow(
     todo: Todo,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     onMarkDone: () -> Unit,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = "Edit")
             .padding(horizontal = 8.dp, vertical = 4.dp),
     ) {
         Checkbox(
