@@ -1,6 +1,7 @@
 package ai.sfdk.todomobile.ui.list
 
 import ai.sfdk.todomobile.data.Todo
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
@@ -27,24 +29,33 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,6 +66,18 @@ fun TodoListScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(state.lastDone) {
+        val todo = state.lastDone ?: return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = "Marked \"${todo.title}\" done",
+            actionLabel = "Undo",
+            duration = SnackbarDuration.Short,
+        )
+        viewModel.undoShown()
+        if (result == SnackbarResult.ActionPerformed) viewModel.undoDone(todo.id)
+    }
 
     Scaffold(
         topBar = {
@@ -67,6 +90,7 @@ fun TodoListScreen(
                 },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             FloatingActionButton(onClick = { showAddDialog = true }) {
                 Icon(Icons.Default.Add, contentDescription = "Add todo")
@@ -143,11 +167,13 @@ private fun TodoList(
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
             items(state.todos) { todo ->
-                TodoRow(
-                    todo = todo,
-                    onClick = { onOpenTodo(todo.id) },
-                    onMarkDone = { onMarkDone(todo.id) },
-                )
+                SwipeToMarkDone(enabled = !todo.done, onMarkDone = { onMarkDone(todo.id) }) {
+                    TodoRow(
+                        todo = todo,
+                        onClick = { onOpenTodo(todo.id) },
+                        onMarkDone = { onMarkDone(todo.id) },
+                    )
+                }
                 HorizontalDivider()
             }
             if (state.isLoading && !state.isRefreshing) {
@@ -175,6 +201,43 @@ private fun TodoList(
     }
 }
 
+/** A swipe from right to left marks the todo done; the row then slides back, shown done. */
+@Composable
+private fun SwipeToMarkDone(
+    enabled: Boolean,
+    onMarkDone: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val swipeState = rememberSwipeToDismissBoxState()
+    val scope = rememberCoroutineScope()
+    SwipeToDismissBox(
+        state = swipeState,
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = enabled,
+        onDismiss = {
+            onMarkDone()
+            scope.launch { swipeState.reset() }
+        },
+        backgroundContent = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(DoneGreen)
+                    .padding(horizontal = 24.dp),
+            ) {
+                Text("Done", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White)
+            }
+        },
+    ) {
+        content()
+    }
+}
+
+private val DoneGreen = Color(0xFF2E7D32)
+
 @Composable
 private fun TodoRow(
     todo: Todo,
@@ -185,6 +248,7 @@ private fun TodoRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 4.dp),
     ) {

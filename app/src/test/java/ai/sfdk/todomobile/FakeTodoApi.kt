@@ -13,6 +13,7 @@ class FakeTodoApi(initial: List<Todo> = emptyList()) : TodoApi {
     val todos = initial.toMutableList()
     val listCalls = mutableListOf<ListCall>()
     val changes = mutableListOf<Pair<String, TodoChanges>>()
+    val markDoneCalls = mutableListOf<String>()
     var failure: Exception? = null
 
     override suspend fun listTodos(query: String?, page: Int, pageSize: Int): TodoPage {
@@ -49,7 +50,14 @@ class FakeTodoApi(initial: List<Todo> = emptyList()) : TodoApi {
         return updated
     }
 
-    override suspend fun markDone(id: String): Todo = updateTodo(id, TodoChanges(done = true))
+    /** Like todo-app's `POST /api/todos/{id}/done`, which flips `done` (src/todos.ts). */
+    override suspend fun markDone(id: String): Todo {
+        failure?.let { throw it }
+        markDoneCalls += id
+        val index = todos.indexOfFirst { it.id == id }
+        todos[index] = todos[index].copy(done = !todos[index].done)
+        return todos[index]
+    }
 
     override suspend fun deleteTodo(id: String) {
         failure?.let { throw it }

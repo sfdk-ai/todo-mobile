@@ -3,6 +3,7 @@ package ai.sfdk.todomobile.ui
 import ai.sfdk.todomobile.FakeTodoApi
 import ai.sfdk.todomobile.MainDispatcherRule
 import ai.sfdk.todomobile.data.Todo
+import ai.sfdk.todomobile.data.TodoChanges
 import ai.sfdk.todomobile.sampleTodos
 import ai.sfdk.todomobile.ui.list.TodoListViewModel
 import kotlinx.coroutines.test.runTest
@@ -116,6 +117,69 @@ class TodoListViewModelTest {
         val todos = viewModel.state.value.todos
         assertEquals(listOf(false, true, false), todos.map { it.done })
         assertEquals(listOf("1", "2", "3"), todos.map { it.id })
+    }
+
+    @Test
+    fun `marking a todo done sets done to true on the server`() = runTest {
+        val api = FakeTodoApi(sampleTodos(3))
+        val viewModel = TodoListViewModel { api }
+
+        viewModel.markDone("2")
+        viewModel.markDone("2")
+
+        assertEquals(listOf("2" to TodoChanges(done = true), "2" to TodoChanges(done = true)), api.changes)
+        assertTrue(api.markDoneCalls.isEmpty())
+        assertTrue(api.todos.first { it.id == "2" }.done)
+        assertTrue(viewModel.state.value.todos.first { it.id == "2" }.done)
+    }
+
+    @Test
+    fun `marking a todo done offers to undo it`() = runTest {
+        val api = FakeTodoApi(sampleTodos(3))
+        val viewModel = TodoListViewModel { api }
+
+        viewModel.markDone("2")
+
+        assertEquals("Todo 2", viewModel.state.value.lastDone?.title)
+    }
+
+    @Test
+    fun `undo sets the todo back to not done`() = runTest {
+        val api = FakeTodoApi(sampleTodos(3))
+        val viewModel = TodoListViewModel { api }
+        viewModel.markDone("2")
+
+        viewModel.undoDone("2")
+
+        assertEquals("2" to TodoChanges(done = false), api.changes.last())
+        assertEquals(listOf(false, false, false), viewModel.state.value.todos.map { it.done })
+        assertNull(viewModel.state.value.lastDone)
+    }
+
+    @Test
+    fun `the undo offer goes away once it has been shown`() = runTest {
+        val api = FakeTodoApi(sampleTodos(3))
+        val viewModel = TodoListViewModel { api }
+        viewModel.markDone("2")
+
+        viewModel.undoShown()
+
+        assertNull(viewModel.state.value.lastDone)
+        assertTrue(viewModel.state.value.todos.first { it.id == "2" }.done)
+    }
+
+    @Test
+    fun `a failed mark done leaves the todo not done and shows the error`() = runTest {
+        val api = FakeTodoApi(sampleTodos(3))
+        val viewModel = TodoListViewModel { api }
+        api.failure = IOException("connect timed out")
+
+        viewModel.markDone("2")
+
+        val state = viewModel.state.value
+        assertEquals(listOf(false, false, false), state.todos.map { it.done })
+        assertEquals("Could not reach the server.", state.error)
+        assertNull(state.lastDone)
     }
 
     @Test
