@@ -7,12 +7,15 @@ import ai.sfdk.todomobile.data.TodoChanges
 import ai.sfdk.todomobile.sampleTodos
 import ai.sfdk.todomobile.ui.list.TodoListViewModel
 import kotlinx.coroutines.test.runTest
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import retrofit2.HttpException
+import retrofit2.Response
 import java.io.IOException
 
 class TodoListViewModelTest {
@@ -178,5 +181,40 @@ class TodoListViewModelTest {
         assertEquals((1..20).map { "Todo $it" }, state.todos.map { it.title })
         assertEquals(1, state.page)
         assertTrue(state.hasMore)
+    }
+
+    @Test
+    fun `returning from an edit shows the todo's new title`() = runTest {
+        val api = FakeTodoApi(sampleTodos(3))
+        val viewModel = TodoListViewModel { api }
+        api.updateTodo("2", TodoChanges(title = "Renamed"))
+
+        viewModel.reloadTodo("2")
+
+        assertEquals(listOf("Todo 1", "Renamed", "Todo 3"), viewModel.state.value.todos.map { it.title })
+        assertNull(viewModel.state.value.error)
+    }
+
+    @Test
+    fun `returning from a deleted todo drops its row`() = runTest {
+        val api = FakeTodoApi(sampleTodos(3))
+        val viewModel = TodoListViewModel { api }
+        api.failure = HttpException(Response.error<Todo>(404, "".toResponseBody()))
+
+        viewModel.reloadTodo("2")
+
+        assertEquals(listOf("Todo 1", "Todo 3"), viewModel.state.value.todos.map { it.title })
+    }
+
+    @Test
+    fun `a reload that cannot reach the server leaves the list as it was`() = runTest {
+        val api = FakeTodoApi(sampleTodos(3))
+        val viewModel = TodoListViewModel { api }
+        api.failure = IOException("offline")
+
+        viewModel.reloadTodo("2")
+
+        assertEquals(listOf("Todo 1", "Todo 2", "Todo 3"), viewModel.state.value.todos.map { it.title })
+        assertNull(viewModel.state.value.error)
     }
 }

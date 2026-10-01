@@ -44,8 +44,8 @@ fun TodoDetailScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    LaunchedEffect(state.isDeleted) {
-        if (state.isDeleted) onBack()
+    LaunchedEffect(state.isDeleted, state.isFinished) {
+        if (state.isDeleted || state.isFinished) onBack()
     }
 
     Scaffold(

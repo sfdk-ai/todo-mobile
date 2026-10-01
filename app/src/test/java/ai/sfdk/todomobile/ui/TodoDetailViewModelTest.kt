@@ -164,4 +164,62 @@ class TodoDetailViewModelTest {
         assertTrue(viewModel.state.value.isDeleted)
         assertTrue(api.todos.isEmpty())
     }
+
+    @Test
+    fun `opened for editing it starts in the edit form`() = runTest {
+        val viewModel = TodoDetailViewModel("1", editOnOpen = true) { FakeTodoApi(listOf(groceries)) }
+
+        val state = viewModel.state.value
+        assertTrue(state.isEditing)
+        assertEquals("Buy groceries", state.draftTitle)
+        assertEquals("home, errands", state.draftTags)
+        assertFalse(state.isFinished)
+    }
+
+    @Test
+    fun `opened for editing it is finished once the edit is saved`() = runTest {
+        val api = FakeTodoApi(listOf(groceries))
+        val viewModel = TodoDetailViewModel("1", editOnOpen = true) { api }
+
+        viewModel.onTitleChange("Buy groceries and bread")
+        viewModel.save()
+
+        assertEquals("Buy groceries and bread", api.todos.single().title)
+        assertTrue(viewModel.state.value.isFinished)
+    }
+
+    @Test
+    fun `opened for editing it is finished when the edit is cancelled`() = runTest {
+        val api = FakeTodoApi(listOf(groceries))
+        val viewModel = TodoDetailViewModel("1", editOnOpen = true) { api }
+
+        viewModel.cancelEditing()
+
+        assertTrue(api.changes.isEmpty())
+        assertTrue(viewModel.state.value.isFinished)
+    }
+
+    @Test
+    fun `opened for editing a failed save keeps the form open`() = runTest {
+        val api = FakeTodoApi(listOf(groceries))
+        val viewModel = TodoDetailViewModel("1", editOnOpen = true) { api }
+        api.failure = HttpException(Response.error<Todo>(500, "".toResponseBody()))
+
+        viewModel.save()
+
+        val state = viewModel.state.value
+        assertTrue(state.isEditing)
+        assertFalse(state.isFinished)
+        assertEquals("The server answered with an error (500).", state.error)
+    }
+
+    @Test
+    fun `opened from a tap a saved edit stays on the todo`() = runTest {
+        val viewModel = TodoDetailViewModel("1") { FakeTodoApi(listOf(groceries)) }
+        viewModel.startEditing()
+
+        viewModel.save()
+
+        assertFalse(viewModel.state.value.isFinished)
+    }
 }
