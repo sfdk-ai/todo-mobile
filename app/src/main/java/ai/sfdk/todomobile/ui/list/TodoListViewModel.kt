@@ -22,7 +22,10 @@ data class TodoListState(
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val error: String? = null,
-)
+) {
+    val showsEmptyState: Boolean
+        get() = !isLoading && todos.isEmpty() && error == null && query.isBlank()
+}
 
 class TodoListViewModel(
     private val api: suspend () -> TodoApi,
