@@ -20,7 +20,11 @@ class SettingsRepository(
     private val baseUrlState = MutableStateFlow(DEFAULT_BASE_URL)
 
     private val restored: Deferred<Unit> = scope.async {
-        val stored = runCatching { dataStore.data.first()[BASE_URL_KEY] }.getOrNull()
+        val stored = runCatching {
+            val preferences = dataStore.data.first()
+            (listOf(BASE_URL_KEY) + LEGACY_BASE_URL_KEYS)
+                .firstNotNullOfOrNull { key -> preferences[key]?.takeIf { it.isNotBlank() } }
+        }.getOrNull()
         if (!stored.isNullOrBlank()) {
             baseUrlState.value = stored
         }
@@ -37,7 +41,7 @@ class SettingsRepository(
         baseUrlState.value = url
         scope.launch {
             dataStore.edit { preferences ->
-                preferences[stringPreferencesKey("api_base_url")] = url
+                preferences[BASE_URL_KEY] = url
             }
         }
     }
@@ -46,5 +50,11 @@ class SettingsRepository(
         const val DEFAULT_BASE_URL = "http://10.0.2.2:3000/api"
 
         private val BASE_URL_KEY = stringPreferencesKey("API_BASE_URL")
+
+        // Earlier builds wrote the address under these keys but never read them back.
+        private val LEGACY_BASE_URL_KEYS = listOf(
+            stringPreferencesKey("api_base_url"),
+            stringPreferencesKey("base_url"),
+        )
     }
 }
