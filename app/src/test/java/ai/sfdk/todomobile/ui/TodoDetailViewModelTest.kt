@@ -82,6 +82,56 @@ class TodoDetailViewModelTest {
     }
 
     @Test
+    fun `saving an empty title shows a message and keeps the todo`() = runTest {
+        val api = FakeTodoApi(listOf(groceries))
+        val viewModel = TodoDetailViewModel("1") { api }
+        viewModel.startEditing()
+
+        viewModel.onTitleChange("   ")
+        viewModel.save()
+
+        val state = viewModel.state.value
+        assertEquals("The title can't be empty.", state.error)
+        assertTrue(state.isEditing)
+        assertFalse(state.isSaving)
+        assertEquals(groceries, state.todo)
+        assertTrue(api.changes.isEmpty())
+    }
+
+    @Test
+    fun `a save the server refuses shows an error and keeps editing`() = runTest {
+        val api = FakeTodoApi(listOf(groceries))
+        val viewModel = TodoDetailViewModel("1") { api }
+        viewModel.startEditing()
+        api.failure = HttpException(Response.error<Todo>(400, "".toResponseBody()))
+
+        viewModel.onTitleChange("Buy groceries and bread")
+        viewModel.save()
+
+        val state = viewModel.state.value
+        assertEquals("The server answered with an error (400).", state.error)
+        assertTrue(state.isEditing)
+        assertFalse(state.isSaving)
+        assertEquals("Buy groceries and bread", state.draftTitle)
+        assertEquals(groceries, state.todo)
+    }
+
+    @Test
+    fun `a save while the server is unreachable shows an error`() = runTest {
+        val api = FakeTodoApi(listOf(groceries))
+        val viewModel = TodoDetailViewModel("1") { api }
+        viewModel.startEditing()
+        api.failure = java.io.IOException("connection refused")
+
+        viewModel.save()
+
+        val state = viewModel.state.value
+        assertEquals("Could not reach the server.", state.error)
+        assertTrue(state.isEditing)
+        assertFalse(state.isSaving)
+    }
+
+    @Test
     fun `cancel leaves the todo unchanged`() = runTest {
         val api = FakeTodoApi(listOf(groceries))
         val viewModel = TodoDetailViewModel("1") { api }

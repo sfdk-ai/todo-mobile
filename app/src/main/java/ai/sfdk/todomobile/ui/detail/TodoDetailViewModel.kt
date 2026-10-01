@@ -63,7 +63,7 @@ class TodoDetailViewModel(
     }
 
     fun cancelEditing() {
-        _state.update { it.copy(isEditing = false) }
+        _state.update { it.copy(isEditing = false, error = null) }
     }
 
     fun onTitleChange(title: String) {
@@ -76,13 +76,21 @@ class TodoDetailViewModel(
 
     fun save() {
         val draft = _state.value
-        _state.update { it.copy(isSaving = true) }
+        val title = draft.draftTitle.trim()
+        if (title.isEmpty()) {
+            _state.update { it.copy(error = EMPTY_TITLE_MESSAGE) }
+            return
+        }
+        _state.update { it.copy(isSaving = true, error = null) }
         viewModelScope.launch {
-            val updated = api().updateTodo(
-                id,
-                TodoChanges(title = draft.draftTitle.trim(), tags = parseTags(draft.draftTags)),
-            )
-            _state.update { it.copy(todo = updated, isEditing = false, isSaving = false) }
+            try {
+                val updated = api().updateTodo(id, TodoChanges(title = title, tags = parseTags(draft.draftTags)))
+                _state.update { it.copy(todo = updated, isEditing = false, isSaving = false) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { it.copy(isSaving = false, error = e.toUserMessage()) }
+            }
         }
     }
 
@@ -114,4 +122,8 @@ class TodoDetailViewModel(
 
     private fun parseTags(text: String): List<String> =
         text.split(',').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+
+    companion object {
+        const val EMPTY_TITLE_MESSAGE = "The title can't be empty."
+    }
 }

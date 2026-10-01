@@ -169,6 +169,9 @@ private fun EditForm(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
+        state.error?.let {
+            Text(text = it, color = MaterialTheme.colorScheme.error)
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onSave, enabled = !state.isSaving) {
                 Text(if (state.isSaving) "Saving…" else "Save")
