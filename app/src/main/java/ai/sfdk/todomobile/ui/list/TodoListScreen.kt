@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,10 +57,27 @@ fun TodoListScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
 
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onScreenShown()
+        onPauseOrDispose { }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Todos") },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Todos")
+                        state.remaining?.let { remaining ->
+                            Text(
+                                text = "$remaining left",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 12.dp),
+                            )
+                        }
+                    }
+                },
                 actions = {
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")

@@ -9,7 +9,7 @@ An Android app for [todo-app](https://github.com/sfdk-ai/todo-app). It lists you
 
 ## Screens
 
-- **Todos**: the list, newest first. Pull down to refresh, type in the search box to filter by title, scroll to load more, tap the box to mark a todo done, and tap + to add one.
+- **Todos**: the list, newest first, with how many todos are left (not done) in the top bar. Pull down to refresh, type in the search box to filter by title, scroll to load more, tap the box to mark a todo done, and tap + to add one.
 - **Todo**: one todo with its tags and creation time. Edit its title and tags, mark it done, or delete it.
 - **Settings** (the gear icon): `API_BASE_URL`, the address of the todo-app API, with the value in use.
 
