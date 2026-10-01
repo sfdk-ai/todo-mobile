@@ -5,6 +5,7 @@ import ai.sfdk.todomobile.MainDispatcherRule
 import ai.sfdk.todomobile.data.Todo
 import ai.sfdk.todomobile.data.TodoChanges
 import ai.sfdk.todomobile.sampleTodos
+import ai.sfdk.todomobile.ui.list.TodoListState
 import ai.sfdk.todomobile.ui.list.TodoListViewModel
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -178,5 +179,59 @@ class TodoListViewModelTest {
         assertEquals((1..20).map { "Todo $it" }, state.todos.map { it.title })
         assertEquals(1, state.page)
         assertTrue(state.hasMore)
+    }
+
+    @Test
+    fun `shows the empty state when there are no todos`() = runTest {
+        val api = FakeTodoApi()
+
+        val viewModel = TodoListViewModel { api }
+
+        assertTrue(viewModel.state.value.showsEmptyState)
+    }
+
+    @Test
+    fun `hides the empty state when there are todos`() = runTest {
+        val api = FakeTodoApi(sampleTodos(2))
+
+        val viewModel = TodoListViewModel { api }
+
+        assertFalse(viewModel.state.value.showsEmptyState)
+    }
+
+    @Test
+    fun `hides the empty state while the list is loading`() {
+        assertFalse(TodoListState(isLoading = true).showsEmptyState)
+    }
+
+    @Test
+    fun `hides the empty state when the server cannot be reached`() = runTest {
+        val api = FakeTodoApi().apply { failure = IOException("connect timed out") }
+
+        val viewModel = TodoListViewModel { api }
+
+        assertFalse(viewModel.state.value.showsEmptyState)
+    }
+
+    @Test
+    fun `hides the empty state when a search matches nothing`() = runTest {
+        val api = FakeTodoApi(sampleTodos(2))
+        val viewModel = TodoListViewModel { api }
+
+        viewModel.onQueryChange("milk")
+
+        assertTrue(viewModel.state.value.todos.isEmpty())
+        assertFalse(viewModel.state.value.showsEmptyState)
+    }
+
+    @Test
+    fun `adding the first todo hides the empty state`() = runTest {
+        val api = FakeTodoApi()
+        val viewModel = TodoListViewModel { api }
+
+        viewModel.addTodo("Buy milk")
+
+        assertEquals(listOf("Buy milk"), viewModel.state.value.todos.map { it.title })
+        assertFalse(viewModel.state.value.showsEmptyState)
     }
 }
