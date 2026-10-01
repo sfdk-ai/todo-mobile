@@ -8,6 +8,7 @@ import ai.sfdk.todomobile.ui.toUserMessage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,6 +23,7 @@ data class TodoListState(
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val error: String? = null,
+    val remaining: Int? = null,
 )
 
 class TodoListViewModel(
@@ -31,12 +33,27 @@ class TodoListViewModel(
     private val _state = MutableStateFlow(TodoListState(isLoading = true))
     val state: StateFlow<TodoListState> = _state.asStateFlow()
 
+    private var shown = false
+    private var countJob: Job? = null
+
     init {
+        countRemaining()
         fetchPage(1)
     }
 
     fun refresh() {
         _state.update { it.copy(isRefreshing = true) }
+        countRemaining()
+        fetchPage(1)
+    }
+
+    /** Reloads when the list comes back on screen, such as after a todo was deleted on its own page. */
+    fun onScreenShown() {
+        if (!shown) {
+            shown = true
+            return
+        }
+        countRemaining()
         fetchPage(1)
     }
 
@@ -73,6 +90,7 @@ class TodoListViewModel(
             try {
                 val created = api().createTodo(NewTodo(title = title.trim()))
                 _state.update { it.copy(todos = listOf(created) + it.todos, error = null) }
+                countRemaining()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -88,6 +106,7 @@ class TodoListViewModel(
                 _state.update { state ->
                     state.copy(todos = state.todos.map { if (it.id == updated.id) updated else it }, error = null)
                 }
+                countRemaining()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -118,5 +137,34 @@ class TodoListViewModel(
         }
     }
 
+    /** Counts the todos not done over every page, whatever the search box holds. */
+    private fun countRemaining() {
+        countJob?.cancel()
+        countJob = viewModelScope.launch {
+            try {
+                val seen = mutableSetOf<String>()
+                var remaining = 0
+                var page = 1
+                do {
+                    val result = api().listTodos(null, page, COUNT_PAGE_SIZE)
+                    // The server's pages can overlap, so a todo is counted once by its id.
+                    for (todo in result.items) {
+                        if (seen.add(todo.id) && !todo.done) remaining++
+                    }
+                    page++
+                } while (result.items.isNotEmpty() && seen.size < result.total)
+                _state.update { it.copy(remaining = remaining) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { it.copy(remaining = null) }
+            }
+        }
+    }
+
     private fun String.searchTerm(): String? = trim().ifEmpty { null }
+
+    private companion object {
+        const val COUNT_PAGE_SIZE = 100
+    }
 }
