@@ -102,7 +102,7 @@ class TodoListViewModel(
                 val result = api().listTodos(_state.value.query.searchTerm(), page, PAGE_SIZE)
                 _state.update {
                     it.copy(
-                        todos = it.todos + result.items,
+                        todos = if (page == 1) result.items else it.todos + result.items,
                         page = page,
                         hasMore = page * PAGE_SIZE < result.total,
                         isLoading = false,

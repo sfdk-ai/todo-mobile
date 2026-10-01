@@ -3,6 +3,7 @@ package ai.sfdk.todomobile.ui
 import ai.sfdk.todomobile.FakeTodoApi
 import ai.sfdk.todomobile.MainDispatcherRule
 import ai.sfdk.todomobile.data.Todo
+import ai.sfdk.todomobile.data.TodoChanges
 import ai.sfdk.todomobile.sampleTodos
 import ai.sfdk.todomobile.ui.list.TodoListViewModel
 import kotlinx.coroutines.test.runTest
@@ -140,5 +141,42 @@ class TodoListViewModelTest {
         val state = viewModel.state.value
         assertFalse(state.isRefreshing)
         assertNull(state.error)
+    }
+
+    @Test
+    fun `pull to refresh shows each todo once`() = runTest {
+        val api = FakeTodoApi(sampleTodos(3))
+        val viewModel = TodoListViewModel { api }
+
+        viewModel.refresh()
+        viewModel.refresh()
+
+        assertEquals(listOf("Todo 1", "Todo 2", "Todo 3"), viewModel.state.value.todos.map { it.title })
+        assertEquals(1, viewModel.state.value.page)
+    }
+
+    @Test
+    fun `pull to refresh replaces an edited todo with the server's copy`() = runTest {
+        val api = FakeTodoApi(sampleTodos(3))
+        val viewModel = TodoListViewModel { api }
+        api.updateTodo("2", TodoChanges(title = "Renamed"))
+
+        viewModel.refresh()
+
+        assertEquals(listOf("Todo 1", "Renamed", "Todo 3"), viewModel.state.value.todos.map { it.title })
+    }
+
+    @Test
+    fun `pull to refresh after loading more starts again from the first page`() = runTest {
+        val api = FakeTodoApi(sampleTodos(25))
+        val viewModel = TodoListViewModel { api }
+        viewModel.loadMore()
+
+        viewModel.refresh()
+
+        val state = viewModel.state.value
+        assertEquals((1..20).map { "Todo $it" }, state.todos.map { it.title })
+        assertEquals(1, state.page)
+        assertTrue(state.hasMore)
     }
 }
