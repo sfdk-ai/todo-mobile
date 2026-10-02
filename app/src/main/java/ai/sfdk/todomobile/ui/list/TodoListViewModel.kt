@@ -3,6 +3,7 @@ package ai.sfdk.todomobile.ui.list
 import ai.sfdk.todomobile.data.NewTodo
 import ai.sfdk.todomobile.data.Todo
 import ai.sfdk.todomobile.data.TodoApi
+import ai.sfdk.todomobile.data.TodoChanges
 import ai.sfdk.todomobile.data.TodoApi.Companion.PAGE_SIZE
 import ai.sfdk.todomobile.ui.toUserMessage
 import androidx.lifecycle.ViewModel
@@ -22,6 +23,8 @@ data class TodoListState(
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val error: String? = null,
+    /** The todo just marked done, while the list offers to undo it. */
+    val lastDone: Todo? = null,
 )
 
 class TodoListViewModel(
@@ -82,11 +85,33 @@ class TodoListViewModel(
     }
 
     fun markDone(id: String) {
+        setDone(id, done = true)
+    }
+
+    fun undoDone(id: String) {
+        setDone(id, done = false)
+    }
+
+    fun markNotDone(id: String) {
+        setDone(id, done = false)
+    }
+
+    fun undoShown() {
+        _state.update { it.copy(lastDone = null) }
+    }
+
+    // PATCH with an explicit value: the server's POST todos/{id}/done flips done, so a repeat would undo it.
+    private fun setDone(id: String, done: Boolean) {
         viewModelScope.launch {
             try {
-                val updated = api().markDone(id)
+                val updated = api().updateTodo(id, TodoChanges(done = done))
                 _state.update { state ->
-                    state.copy(todos = state.todos.map { if (it.id == updated.id) updated else it }, error = null)
+                    state.copy(
+                        todos = state.todos.map { if (it.id == updated.id) updated else it },
+                        error = null,
+                        // Setting one todo back keeps the Undo offer for another.
+                        lastDone = if (done) updated else state.lastDone?.takeIf { it.id != updated.id },
+                    )
                 }
             } catch (e: CancellationException) {
                 throw e
