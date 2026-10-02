@@ -169,6 +169,35 @@ class TodoListViewModelTest {
     }
 
     @Test
+    fun `marking a done todo not done sets done to false on the server`() = runTest {
+        val api = FakeTodoApi(sampleTodos(3))
+        val viewModel = TodoListViewModel { api }
+        viewModel.markDone("2")
+        viewModel.undoShown()
+
+        viewModel.markNotDone("2")
+
+        assertEquals("2" to TodoChanges(done = false), api.changes.last())
+        assertFalse(api.todos.first { it.id == "2" }.done)
+        assertEquals(listOf(false, false, false), viewModel.state.value.todos.map { it.done })
+        assertNull(viewModel.state.value.lastDone)
+    }
+
+    @Test
+    fun `marking another todo not done keeps the undo offer`() = runTest {
+        val api = FakeTodoApi(sampleTodos(3))
+        val viewModel = TodoListViewModel { api }
+        viewModel.markDone("1")
+        viewModel.undoShown()
+        viewModel.markDone("2")
+
+        viewModel.markNotDone("1")
+
+        assertEquals("Todo 2", viewModel.state.value.lastDone?.title)
+        assertEquals(listOf(false, true, false), viewModel.state.value.todos.map { it.done })
+    }
+
+    @Test
     fun `a failed mark done leaves the todo not done and shows the error`() = runTest {
         val api = FakeTodoApi(sampleTodos(3))
         val viewModel = TodoListViewModel { api }

@@ -92,6 +92,10 @@ class TodoListViewModel(
         setDone(id, done = false)
     }
 
+    fun markNotDone(id: String) {
+        setDone(id, done = false)
+    }
+
     fun undoShown() {
         _state.update { it.copy(lastDone = null) }
     }
@@ -105,7 +109,8 @@ class TodoListViewModel(
                     state.copy(
                         todos = state.todos.map { if (it.id == updated.id) updated else it },
                         error = null,
-                        lastDone = if (done) updated else null,
+                        // Setting one todo back keeps the Undo offer for another.
+                        lastDone = if (done) updated else state.lastDone?.takeIf { it.id != updated.id },
                     )
                 }
             } catch (e: CancellationException) {

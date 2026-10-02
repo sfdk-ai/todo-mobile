@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
@@ -34,6 +35,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -129,6 +131,7 @@ fun TodoListScreen(
                     state = state,
                     onOpenTodo = onOpenTodo,
                     onMarkDone = viewModel::markDone,
+                    onMarkNotDone = viewModel::markNotDone,
                     onLoadMore = viewModel::loadMore,
                 )
             }
@@ -151,6 +154,7 @@ private fun TodoList(
     state: TodoListState,
     onOpenTodo: (String) -> Unit,
     onMarkDone: (String) -> Unit,
+    onMarkNotDone: (String) -> Unit,
     onLoadMore: () -> Unit,
 ) {
     val listState = rememberLazyListState()
@@ -167,7 +171,11 @@ private fun TodoList(
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
             items(state.todos) { todo ->
-                SwipeToMarkDone(enabled = !todo.done, onMarkDone = { onMarkDone(todo.id) }) {
+                SwipeToToggleDone(
+                    done = todo.done,
+                    onMarkDone = { onMarkDone(todo.id) },
+                    onMarkNotDone = { onMarkNotDone(todo.id) },
+                ) {
                     TodoRow(
                         todo = todo,
                         onClick = { onOpenTodo(todo.id) },
@@ -201,34 +209,52 @@ private fun TodoList(
     }
 }
 
-/** A swipe from right to left marks the todo done; the row then slides back, shown done. */
+/**
+ * A swipe from right to left marks a todo done; a swipe from left to right sets a done todo back to not done.
+ * The row then slides back, shown in its new state.
+ */
 @Composable
-private fun SwipeToMarkDone(
-    enabled: Boolean,
+private fun SwipeToToggleDone(
+    done: Boolean,
     onMarkDone: () -> Unit,
+    onMarkNotDone: () -> Unit,
     content: @Composable () -> Unit,
 ) {
     val swipeState = rememberSwipeToDismissBoxState()
     val scope = rememberCoroutineScope()
     SwipeToDismissBox(
         state = swipeState,
-        enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = enabled,
-        onDismiss = {
-            onMarkDone()
+        enableDismissFromStartToEnd = done,
+        enableDismissFromEndToStart = !done,
+        onDismiss = { direction ->
+            if (direction == SwipeToDismissBoxValue.StartToEnd) onMarkNotDone() else onMarkDone()
             scope.launch { swipeState.reset() }
         },
         backgroundContent = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(DoneGreen)
-                    .padding(horizontal = 24.dp),
-            ) {
-                Text("Done", color = Color.White, style = MaterialTheme.typography.titleMedium)
-                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White)
+            if (swipeState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(NotDoneGrey)
+                        .padding(horizontal = 24.dp),
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White)
+                    Text("Not done", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                }
+            } else {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(DoneGreen)
+                        .padding(horizontal = 24.dp),
+                ) {
+                    Text("Done", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White)
+                }
             }
         },
     ) {
@@ -237,6 +263,7 @@ private fun SwipeToMarkDone(
 }
 
 private val DoneGreen = Color(0xFF2E7D32)
+private val NotDoneGrey = Color(0xFF546E7A)
 
 @Composable
 private fun TodoRow(
